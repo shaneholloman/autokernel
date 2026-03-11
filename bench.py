@@ -144,11 +144,13 @@ def detect_gpu() -> GPUSpec:
         ops_per_clock_per_sm = 256 if cc[0] >= 8 else 128
         clock_ghz = props.clock_rate / 1e6  # clock_rate is in kHz
         peak_fp16 = sm_count * ops_per_clock_per_sm * clock_ghz * 2 / 1e3  # TFLOPS
-        # Bandwidth: memory_clock_rate (kHz) * bus_width (bits) / 8 * 2 (DDR) / 1e9
-        peak_bw = props.clock_rate / 1e6 * 256 / 8 * 2  # rough estimate GB/s
-        # Very rough, we don't know the real bandwidth from properties alone
-        # Use a conservative fallback
-        peak_bw = max(peak_bw, 500.0)
+        # APPROXIMATE bandwidth estimate: torch.cuda.get_device_properties()
+        # does not expose memory clock rate, so we use the GPU core clock
+        # (props.clock_rate) as a rough proxy. This will NOT match the real
+        # memory bandwidth -- it is only used as a coarse fallback when the
+        # GPU is not in the _KNOWN_GPUS table above.
+        peak_bw = props.clock_rate / 1e6 * 256 / 8 * 2  # rough proxy GB/s (uses core clock, not mem clock)
+        peak_bw = max(peak_bw, 500.0)  # conservative floor
         l2 = props.L2_cache_size / (1024 * 1024) if hasattr(props, 'L2_cache_size') else 0.0
 
     # Derive bf16 and fp32 from fp16

@@ -26,5 +26,8 @@ run.log
 # Analysis output (regenerated)
 report.md
 
+# Profiler traces
+traces/
+
 # Workspace (runtime artifacts)
 workspace/

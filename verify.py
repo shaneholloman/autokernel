@@ -330,16 +330,26 @@ def discover_optimized_kernels() -> List[KernelReplacement]:
     state = load_orchestration_state()
     if state and "kernels" in state:
         for k in state["kernels"]:
-            ktype = k.get("type", "unknown")
+            ktype = k.get("op_type", k.get("type", "unknown"))
             rank = k.get("rank", 0)
-            speedup = k.get("best_speedup", 1.0)
+            speedup = k.get("speedup", k.get("best_speedup", 1.0))
+            # optimized_path is not written by orchestrate.py, so derive it
+            # from the kernel file path if available
             opt_path = k.get("optimized_path", "")
 
             if not opt_path:
-                # Convention: workspace/kernel_{type}_{rank}_optimized.py
-                opt_path = os.path.join(
-                    WORKSPACE_DIR, f"kernel_{ktype}_{rank}_optimized.py"
-                )
+                # Try to derive from the "file" key that orchestrate.py writes
+                base_file = k.get("file", "")
+                if base_file:
+                    stem = Path(base_file).stem
+                    opt_path = os.path.join(
+                        WORKSPACE_DIR, f"{stem}_optimized.py"
+                    )
+                else:
+                    # Fallback convention: workspace/kernel_{type}_{rank}_optimized.py
+                    opt_path = os.path.join(
+                        WORKSPACE_DIR, f"kernel_{ktype}_{rank}_optimized.py"
+                    )
 
             if os.path.exists(opt_path) and speedup > 1.0:
                 replacements.append(KernelReplacement(
@@ -357,13 +367,21 @@ def discover_optimized_kernels() -> List[KernelReplacement]:
     for fname in sorted(os.listdir(WORKSPACE_DIR)):
         if fname.endswith("_optimized.py"):
             # Parse filename: kernel_{type}_{rank}_optimized.py
-            parts = fname.replace("_optimized.py", "").split("_")
+            # Type can be multi-word (e.g. flash_attention), so the rank
+            # is always the last numeric segment before "_optimized.py".
+            stem = fname.replace("_optimized.py", "")  # e.g. "kernel_flash_attention_1"
+            parts = stem.split("_")
             if len(parts) >= 3 and parts[0] == "kernel":
-                ktype = parts[1]
-                try:
-                    rank = int(parts[2])
-                except ValueError:
-                    rank = 0
+                # Find the rank: last part that is purely numeric
+                rank = 0
+                rank_idx = len(parts)
+                for i in range(len(parts) - 1, 0, -1):
+                    if parts[i].isdigit():
+                        rank = int(parts[i])
+                        rank_idx = i
+                        break
+                # Everything between parts[1] and the rank index is the type
+                ktype = "_".join(parts[1:rank_idx]) if rank_idx > 1 else parts[1]
                 opt_path = os.path.join(WORKSPACE_DIR, fname)
                 replacements.append(KernelReplacement(
                     kernel_type=ktype,

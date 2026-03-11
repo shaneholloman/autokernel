@@ -124,7 +124,10 @@ def _fallback_detect_gpu() -> GPUSpec:
         ops_per_clock_per_sm = 256 if cc[0] >= 8 else 128
         clock_ghz = props.clock_rate / 1e6
         peak_fp16 = sm_count * ops_per_clock_per_sm * clock_ghz * 2 / 1e3
-        peak_bw = max(props.clock_rate / 1e6 * 256 / 8 * 2, 500.0)
+        # APPROXIMATE bandwidth: torch.cuda.get_device_properties() does not
+        # expose memory clock, so we use the GPU core clock as a rough proxy.
+        # This is only a coarse fallback for GPUs not in the known-GPU table.
+        peak_bw = max(props.clock_rate / 1e6 * 256 / 8 * 2, 500.0)  # rough proxy GB/s (core clock, not mem clock)
         l2 = props.L2_cache_size / (1024 * 1024) if hasattr(props, "L2_cache_size") else 0.0
 
     peak_bf16 = peak_fp16

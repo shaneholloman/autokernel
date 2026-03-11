@@ -394,7 +394,7 @@ def get_supported_kernels(report: Dict[str, Any]) -> List[Dict[str, Any]]:
     Extract the list of supported (autokernel_supported=True) kernels from
     the profile report, sorted by rank.
     """
-    kernels = report.get("kernels", report.get("bottleneck_kernels", []))
+    kernels = report.get("top_kernels", report.get("kernels", report.get("bottleneck_kernels", [])))
     supported = []
     for k in kernels:
         if k.get("autokernel_supported", False):
@@ -428,7 +428,7 @@ def generate_optimization_plan(
             "file": entry["output_file"],
             "op_type": entry["op_type"],
             "model_shape": entry["model_shape"],
-            "current_gpu_time_ms": entry["gpu_time_ms"],
+            "gpu_time_ms": entry["gpu_time_ms"],
             "pct_total": entry["pct_total"],
             "estimated_speedup_potential": SPEEDUP_ESTIMATES.get(
                 entry["op_type"], "1.5-2x"

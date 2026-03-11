@@ -26,6 +26,7 @@ import matplotlib.ticker as ticker
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 RESULTS_PATH = os.path.join(SCRIPT_DIR, "results.tsv")
+WORKSPACE_RESULTS_DIR = os.path.join(SCRIPT_DIR, "workspace", "results")
 PROGRESS_PNG = os.path.join(SCRIPT_DIR, "progress.png")
 REPORT_MD = os.path.join(SCRIPT_DIR, "report.md")
 BASELINES_PATH = os.path.join(os.path.expanduser("~"), ".cache", "autokernel", "baselines.json")
@@ -41,11 +42,8 @@ EXPECTED_COLUMNS = [
 # Data loading
 # ---------------------------------------------------------------------------
 
-def load_results(path: str = "results.tsv") -> pd.DataFrame | None:
-    """
-    Parse results.tsv into a pandas DataFrame.
-    Returns None if the file is missing or empty.
-    """
+def _load_single_tsv(path: str) -> pd.DataFrame | None:
+    """Load a single TSV file into a DataFrame. Returns None if missing/empty."""
     if not os.path.exists(path):
         return None
 
@@ -56,6 +54,44 @@ def load_results(path: str = "results.tsv") -> pd.DataFrame | None:
     # Normalise column names to lowercase
     df.columns = [c.strip().lower() for c in df.columns]
 
+    # Convert numeric columns
+    for col in ['experiment', 'throughput_tflops', 'latency_us', 'pct_peak',
+                'speedup_vs_pytorch', 'peak_vram_mb']:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+
+    return df
+
+
+def load_results(path: str = "results.tsv") -> pd.DataFrame | None:
+    """
+    Parse results.tsv into a pandas DataFrame, also merging any TSV files
+    found in workspace/results/ (written by orchestrate.py).
+    Returns None if no data is found.
+    """
+    frames: list[pd.DataFrame] = []
+
+    # Load the root results.tsv
+    root_df = _load_single_tsv(path)
+    if root_df is not None:
+        frames.append(root_df)
+
+    # Also load all TSV files in workspace/results/ (orchestrate.py output)
+    if os.path.isdir(WORKSPACE_RESULTS_DIR):
+        for fname in sorted(os.listdir(WORKSPACE_RESULTS_DIR)):
+            if fname.endswith(".tsv"):
+                ws_path = os.path.join(WORKSPACE_RESULTS_DIR, fname)
+                ws_df = _load_single_tsv(ws_path)
+                if ws_df is not None:
+                    frames.append(ws_df)
+
+    if not frames:
+        return None
+
+    df = pd.concat(frames, ignore_index=True)
+    if len(df) == 0:
+        return None
+
     # Validate columns against expected set
     missing = [c for c in EXPECTED_COLUMNS if c not in df.columns]
     extra = [c for c in df.columns if c not in EXPECTED_COLUMNS]
@@ -65,12 +101,6 @@ def load_results(path: str = "results.tsv") -> pd.DataFrame | None:
             print(f"  Missing columns: {missing}")
         if extra:
             print(f"  Unexpected columns: {extra}")
-
-    # Convert numeric columns
-    for col in ['experiment', 'throughput_tflops', 'latency_us', 'pct_peak',
-                'speedup_vs_pytorch', 'peak_vram_mb']:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
 
     return df
 

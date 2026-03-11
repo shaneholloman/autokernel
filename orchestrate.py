@@ -720,7 +720,7 @@ def cmd_plan(state: dict) -> None:
         print("ERROR: No optimization_plan.json found. Run extract.py first.")
         sys.exit(1)
 
-    kernels_plan = plan.get("kernels", [])
+    kernels_plan = plan.get("kernels_to_optimize", plan.get("kernels", []))
     kernels_state = state["kernels"]
 
     # Build a lookup from file -> state entry

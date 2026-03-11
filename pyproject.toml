@@ -7,8 +7,8 @@ requires-python = ">=3.10"
 dependencies = [
     "matplotlib>=3.10.0",
     "numpy>=2.2.0",
-    "pandas>=2.3.0",
-    "torch==2.9.1",
+    "pandas>=2.2.0",
+    "torch>=2.4.0",
     "triton>=3.3.0",
 ]
 
